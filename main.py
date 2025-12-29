@@ -130,6 +130,10 @@ async def cleanup_resources(gemini_files: list, local_paths: list):
         except Exception as e:
             logger.warning(f"Failed to delete local file {path}: {e}")
 
+@app.get("/")
+def home():
+    return {"message": "Tender Intelligence API is Running!", "docs": "/docs"}
+
 @app.post("/analyze")
 async def analyze_tender(
     background_tasks: BackgroundTasks,
