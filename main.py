@@ -26,8 +26,8 @@ load_dotenv()
 
 # Attempt to load from standard keys, fallback to VITE_ keys if missing
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
-# Supabase key might be SUPABASE_KEY or the Publishable key from frontend
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("VITE_SUPABASE_KEY") or os.getenv("VITE_SUPABASE_PUBLISHABLE_KEY")
+# Supabase key might be SUPABASE_KEY, SUPABASE_PUBLISHABLE_KEY, or the frontend versions
+SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("VITE_SUPABASE_KEY") or os.getenv("VITE_SUPABASE_PUBLISHABLE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("VITE_GEMINI_API_KEY")
 
 if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
