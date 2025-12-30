@@ -54,17 +54,24 @@ SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("VITE_SUPABASE_KEY") or os.getenv("VITE_SUPABASE_PUBLISHABLE_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("VITE_GEMINI_API_KEY")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
-    logger.critical("Missing Critical Environment Variables! Server cannot start.")
-    # In production, you might let this crash, but for now we warn.
+# Check but DO NOT CRASH
+missing_vars = []
+if not SUPABASE_URL: missing_vars.append("SUPABASE_URL")
+if not SUPABASE_KEY: missing_vars.append("SUPABASE_KEY")
+if not GEMINI_API_KEY: missing_vars.append("GEMINI_API_KEY")
+
+if missing_vars:
+    logger.warning(f"Missing Env Vars: {missing_vars}")
 
 # Initialize Clients
 supabase: Client = None
 
+# Lazy init or safe init
 try:
     if SUPABASE_URL and SUPABASE_KEY:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    genai.configure(api_key=GEMINI_API_KEY)
+    if GEMINI_API_KEY:
+        genai.configure(api_key=GEMINI_API_KEY)
 except Exception as e:
     logger.critical(f"Failed to initialize clients: {e}")
 
