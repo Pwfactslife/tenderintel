@@ -32,11 +32,15 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
     # In production, you might let this crash, but for now we warn.
 
 # Initialize Clients
+supabase: Client = None
+
 try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     genai.configure(api_key=GEMINI_API_KEY)
 except Exception as e:
     logger.critical(f"Failed to initialize clients: {e}")
+
 
 # Gemini Model Configurations
 # Flash 1.5 - High efficiency, multimodal
@@ -84,6 +88,9 @@ async def check_user_limits(user_id: str):
     2. Daily Usage < 50
     """
     try:
+        if supabase is None:
+            raise Exception("Database client is not initialized. Check server logs/env vars.")
+            
         # Use execute() instead of single() to avoid crash if no row found
         response = supabase.table("profiles").select("credits_remaining, daily_usage_count").eq("id", user_id).execute()
         
