@@ -84,12 +84,14 @@ async def check_user_limits(user_id: str):
     2. Daily Usage < 50
     """
     try:
-        response = supabase.table("profiles").select("credits_remaining, daily_usage_count").eq("id", user_id).single().execute()
+        # Use execute() instead of single() to avoid crash if no row found
+        response = supabase.table("profiles").select("credits_remaining, daily_usage_count").eq("id", user_id).execute()
         
-        if not response.data:
-            raise HTTPException(status_code=404, detail="User profile not found")
+        if not response.data or len(response.data) == 0:
+            logger.warning(f"Profile not found for user: {user_id}")
+            raise HTTPException(status_code=404, detail=f"User profile with ID {user_id} not found in database.")
         
-        user_data = response.data
+        user_data = response.data[0]
         credits = user_data.get("credits_remaining", 0)
         daily_usage = user_data.get("daily_usage_count", 0)
         
@@ -109,7 +111,8 @@ async def check_user_limits(user_id: str):
         raise he
     except Exception as e:
         logger.error(f"Database Error during limit check: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error during authorization")
+        # Return actual error for debugging
+        raise HTTPException(status_code=500, detail=f"Authorization Error: {str(e)}")
 
 async def upload_to_gemini(path: str, mime_type: str = "application/pdf"):
     """
