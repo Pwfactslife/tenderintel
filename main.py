@@ -176,7 +176,8 @@ def home():
             "supabase_url_configured": bool(SUPABASE_URL),
             "supabase_key_configured": bool(SUPABASE_KEY),
             "gemini_key_configured": bool(GEMINI_API_KEY),
-            "supabase_client_initialized": supabase is not None
+            "supabase_client_initialized": supabase is not None,
+            "available_env_keys": [k for k in os.environ.keys() if any(x in k for x in ["SUPA", "GEMINI", "VITE", "VERCEL", "KEY", "URL"])]
         }
     }
 
