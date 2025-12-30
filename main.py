@@ -166,7 +166,16 @@ async def cleanup_resources(gemini_files: list, local_paths: list):
 
 @app.get("/")
 def home():
-    return {"message": "Tender Intelligence API is Running!", "docs": "/docs"}
+    return {
+        "message": "Tender Intelligence API is Running!", 
+        "docs": "/docs",
+        "health_check": {
+            "supabase_url_configured": bool(SUPABASE_URL),
+            "supabase_key_configured": bool(SUPABASE_KEY),
+            "gemini_key_configured": bool(GEMINI_API_KEY),
+            "supabase_client_initialized": supabase is not None
+        }
+    }
 
 @app.get("/tenders/{user_id}")
 async def get_my_tenders(user_id: str):
