@@ -4,6 +4,7 @@ import logging
 import time
 import tempfile
 import asyncio
+import traceback
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -42,16 +43,39 @@ except Exception as e:
 MODEL_NAME = "gemini-1.5-flash"
 DAILY_LIMIT = 50
 
+# Rate Limiting Configuration
+GEMINI_REQUEST_LIMIT = 13  # Max requests per minute
+GEMINI_REQUESTS = []       # Timestamp tracker
+
 app = FastAPI(title="Tender Intelligence Hub API", version="2.0")
 
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for production security
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+async def check_rate_limit():
+    """
+    Enforces a hard limit of 13 requests per minute.
+    """
+    global GEMINI_REQUESTS
+    current_time = time.time()
+    
+    # Filter out timestamps older than 60 seconds
+    GEMINI_REQUESTS = [t for t in GEMINI_REQUESTS if current_time - t < 60]
+    
+    if len(GEMINI_REQUESTS) >= GEMINI_REQUEST_LIMIT:
+        logger.warning("Rate limit exceeded.")
+        raise HTTPException(
+            status_code=429, 
+            detail="High Traffic. Your tender is queued. Please try again in 1 minute."
+        )
+    
+    GEMINI_REQUESTS.append(current_time)
 
 async def check_user_limits(user_id: str):
     """
@@ -134,6 +158,42 @@ async def cleanup_resources(gemini_files: list, local_paths: list):
 def home():
     return {"message": "Tender Intelligence API is Running!", "docs": "/docs"}
 
+@app.get("/tenders/{user_id}")
+async def get_my_tenders(user_id: str):
+    """
+    Fetches analysis history for a specific user.
+    """
+    try:
+        response = supabase.table("analysis_reports")\
+            .select("*")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .execute()
+            
+        if not response.data:
+            return []
+            
+        # Transform data for frontend
+        tenders = []
+        for item in response.data:
+            report = item.get("report_data", {})
+            # Try to get tender_id from report, fallback to a generic name or date
+            tender_id = report.get("tender_id") or report.get("Tender ID") or f"Tender_{item.get('created_at', 'Unknown')[:10]}"
+            
+            tenders.append({
+                "tender_id": tender_id,
+                "eligibility_score": item.get("score"),
+                "status": item.get("status"),
+                "created_at": item.get("created_at")
+            })
+            
+        return tenders
+        
+    except Exception as e:
+        logger.error(f"Error fetching tenders for {user_id}: {e}")
+        # Don't crash, just return error in a clean way or empty list
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/analyze")
 async def analyze_tender(
     background_tasks: BackgroundTasks,
@@ -146,13 +206,18 @@ async def analyze_tender(
     """
     logger.info(f"Received analysis request from {user_id} with {len(files)} files.")
     
-    # 1. Profit Protection
-    user_data = await check_user_limits(user_id)
-    
     gemini_files = []
     local_paths = []
-    
+
     try:
+        # --- GLOBAL ERROR HANDLING BLOCK ---
+        
+        # 0. Rate Limiting
+        await check_rate_limit()
+
+        # 1. Profit Protection
+        user_data = await check_user_limits(user_id)
+        
         # 2. The Universal Reader (File API Upload)
         for file in files:
             # Create temp file
@@ -171,7 +236,8 @@ async def analyze_tender(
             "Act as a Strict Government Tender Auditor. "
             "Analyze these attached tender documents against the provided User Profile. "
             "Ignore irrelevant text/boilerplate. "
-            "Output strictly valid JSON with no markdown formatting."
+            "Output strictly valid JSON with no markdown formatting. "
+            "Ensure the JSON has keys: tender_id, eligibility_score, status, summary, gap_analysis, penalty_clauses, missing_documents."
         )
         
         model = genai.GenerativeModel(
@@ -227,19 +293,34 @@ async def analyze_tender(
             # We return the result anyway, but log the billing error
         
         # Cleanup (Triggered immediately here or background)
-        # Using await here to ensure it's done, but could be background task if latency is critical
         await cleanup_resources(gemini_files, local_paths)
         
         return analysis_result
 
     except HTTPException as he:
-        # Cleanup validation errors
+        # Re-raise known HTTP exceptions (like 429, 402, 404)
         await cleanup_resources(gemini_files, local_paths)
+        logger.warning(f"Handled HTTPException: {he.detail}")
         raise he
+
     except Exception as e:
-        logger.error(f"Critical Backend Error: {e}")
+        # Catch-all for "Stuck" uploads (Critical Bug Fix)
+        # Log the full traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"CRITICAL BACKEND CRASH: {e}\n{error_trace}")
+        
+        # Cleanup resources if possible
         await cleanup_resources(gemini_files, local_paths)
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        # RETURN CLEAN 500 JSON
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal Server Error", 
+                "details": str(e),
+                "trace_id": str(time.time()) # Optional: helps with debugging
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
