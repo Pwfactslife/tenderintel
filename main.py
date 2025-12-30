@@ -21,8 +21,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Load Environment Variables
-# Load Environment Variables
-load_dotenv()
+# load_dotenv()  <-- Commented out to prevent overriding Vercel envs with empty local values
 
 # Attempt to load from standard keys, fallback to VITE_ keys if missing
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
@@ -43,6 +42,28 @@ try:
     genai.configure(api_key=GEMINI_API_KEY)
 except Exception as e:
     logger.critical(f"Failed to initialize clients: {e}")
+
+# ... (Previous code)
+
+@app.get("/")
+def home():
+    return {
+        "message": "Tender Intelligence API is Running!", 
+        "docs": "/docs",
+        "health_check": {
+            "supabase_url_configured": bool(SUPABASE_URL),
+            "supabase_key_configured": bool(SUPABASE_KEY),
+            "gemini_key_configured": bool(GEMINI_API_KEY),
+            "supabase_client_initialized": supabase is not None,
+            "debug_values": {
+                "SUPABASE_URL_LEN": len(str(SUPABASE_URL)) if SUPABASE_URL else 0,
+                "SUPABASE_KEY_LEN": len(str(SUPABASE_KEY)) if SUPABASE_KEY else 0,
+                "GEMINI_KEY_LEN": len(str(GEMINI_API_KEY)) if GEMINI_API_KEY else 0,
+                "SUPABASE_URL_START": str(SUPABASE_URL)[:4] if SUPABASE_URL else "None",
+            },
+            "available_env_keys": [k for k in os.environ.keys() if any(x in k for x in ["SUPA", "GEMINI", "VITE", "VERCEL", "KEY", "URL"])]
+        }
+    }
 
 
 # Gemini Model Configurations
@@ -177,6 +198,12 @@ def home():
             "supabase_key_configured": bool(SUPABASE_KEY),
             "gemini_key_configured": bool(GEMINI_API_KEY),
             "supabase_client_initialized": supabase is not None,
+            "debug_values": {
+                "SUPABASE_URL_LEN": len(str(SUPABASE_URL)) if SUPABASE_URL else 0,
+                "SUPABASE_KEY_LEN": len(str(SUPABASE_KEY)) if SUPABASE_KEY else 0,
+                "GEMINI_KEY_LEN": len(str(GEMINI_API_KEY)) if GEMINI_API_KEY else 0,
+                "SUPABASE_URL_START": str(SUPABASE_URL)[:4] if SUPABASE_URL else "None",
+            },
             "available_env_keys": [k for k in os.environ.keys() if any(x in k for x in ["SUPA", "GEMINI", "VITE", "VERCEL", "KEY", "URL"])]
         }
     }
