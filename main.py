@@ -21,7 +21,32 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Load Environment Variables
-# load_dotenv()  <-- Commented out to prevent overriding Vercel envs with empty local values
+load_dotenv()
+
+# ... (rest of loading code same as before, ensuring indentation is correct)
+
+# ... (skip to home function)
+
+@app.get("/")
+def home():
+    try:
+        return {
+            "message": "Tender Intelligence API is Running!", 
+            "docs": "/docs",
+            "health_check": {
+                "supabase_url_configured": bool(SUPABASE_URL),
+                "supabase_key_configured": bool(SUPABASE_KEY),
+                "gemini_key_configured": bool(GEMINI_API_KEY),
+                "supabase_client_initialized": supabase is not None,
+                "debug_values": {
+                    "SUPABASE_URL_TYPE": str(type(SUPABASE_URL)),
+                    "SUPABASE_URL_REPR": repr(SUPABASE_URL), # This reveals empty strings or spaces
+                },
+                "available_env_keys": [k for k in os.environ.keys() if any(x in k for x in ["SUPA", "GEMINI", "VITE", "VERCEL", "KEY", "URL"])]
+            }
+        }
+    except Exception as e:
+        return {"error": "Health check generation failed", "details": str(e), "trace": traceback.format_exc()}
 
 # Attempt to load from standard keys, fallback to VITE_ keys if missing
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("VITE_SUPABASE_URL")
